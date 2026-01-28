@@ -76,7 +76,14 @@ end)
 local function createProto(index, value)
     local instance = Assets.ProtoPod:Clone()
     local information = instance.Information
-    local functionName = getInfo(value).name or ''
+    local functionName = ""
+    
+    if type(value) == "function" then
+        functionName = getInfo(value).name or ''
+    else
+        functionName = tostring(value)
+    end
+
     local indexWidth = TextService:GetTextSize(index, 18, "SourceSans", constants.textWidth).X + 8
 
     if functionName == '' then
@@ -109,7 +116,10 @@ local function createConstant(index, value)
     information.Label.Position = UDim2.new(0, indexWidth + 20, 0, 0)
 
     if valueType == "function" then
-        local functionName = getInfo(value).name or ''
+        local functionName = ""
+        if type(value) == "function" then
+            functionName = getInfo(value).name or ''
+        end
 
         if functionName == '' then
             functionName = "Unnamed function"
@@ -118,7 +128,7 @@ local function createConstant(index, value)
         
         information.Label.Text = functionName
     else
-        information.Label.Text = toString(value)
+        information.Label.Text = tostring(value)
     end
     
     ListButton.new(instance, constantsList)
@@ -161,12 +171,6 @@ function Log.new(localScript)
             for i,v in pairs(localScript.Constants) do
                 createConstant(i, v)
             end
-
-            -- for i,v in pairs(localScript.Environment) do
-            --     createEnvironment(i, v)
-            -- end
-
-            -- script decompilation here
 
             selected.scriptLog = log
         end
