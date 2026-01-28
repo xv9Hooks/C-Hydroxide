@@ -5,7 +5,7 @@ if oh then
 end
 
 local web = true
-local user = "xv9Hooks" 
+local user = "xv9Hooks"
 local branch = "revision"
 local importCache = {}
 
@@ -78,10 +78,14 @@ end
 
 local oldGetUpvalue = globalMethods.getUpvalue
 local oldGetUpvalues = globalMethods.getUpvalues
+local oldGetConstants = globalMethods.getConstants
+local oldGetProtos = globalMethods.getProtos
 
 globalMethods.getUpvalue = function(closure, index)
     if type(closure) == "table" then
         return oldGetUpvalue(closure.Data, index)
+    elseif typeof(closure) == "function" and islclosure and not islclosure(closure) then
+        return nil
     end
     return oldGetUpvalue(closure, index)
 end
@@ -89,8 +93,24 @@ end
 globalMethods.getUpvalues = function(closure)
     if type(closure) == "table" then
         return oldGetUpvalues(closure.Data)
+    elseif typeof(closure) == "function" and islclosure and not islclosure(closure) then
+        return {}
     end
     return oldGetUpvalues(closure)
+end
+
+globalMethods.getConstants = function(closure)
+    if typeof(closure) == "function" and islclosure and not islclosure(closure) then
+        return {}
+    end
+    return oldGetConstants(closure)
+end
+
+globalMethods.getProtos = function(closure)
+    if typeof(closure) == "function" and islclosure and not islclosure(closure) then
+        return {}
+    end
+    return oldGetProtos(closure)
 end
 
 environment.hasMethods = hasMethods
