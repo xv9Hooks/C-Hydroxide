@@ -15,7 +15,6 @@ local function hasMethods(methods)
             return false
         end
     end
-
     return true
 end
 
@@ -84,7 +83,6 @@ globalMethods.getUpvalue = function(closure, index)
     if type(closure) == "table" then
         return oldGetUpvalue(closure.Data, index)
     end
-
     return oldGetUpvalue(closure, index)
 end
 
@@ -92,7 +90,6 @@ globalMethods.getUpvalues = function(closure)
     if type(closure) == "table" then
         return oldGetUpvalues(closure.Data)
     end
-
     return oldGetUpvalues(closure)
 end
 
@@ -132,7 +129,6 @@ environment.oh = {
         for _i, event in pairs(oh.Events) do
             event:Disconnect()
         end
-
         for original, hook in pairs(oh.Hooks) do
             local hookType = type(hook)
             if hookType == "function" then
@@ -141,14 +137,11 @@ environment.oh = {
                 hookFunction(hook.Closure.Data, hook.Original)
             end
         end
-
         local ui = importCache["rbxassetid://11389137937"]
         local assets = importCache["rbxassetid://5042114982"]
-
         if ui then
             unpack(ui):Destroy()
         end
-
         if assets then
             unpack(assets):Destroy()
         end
@@ -157,12 +150,9 @@ environment.oh = {
 
 if getConnections then 
     for __, connection in pairs(getConnections(game:GetService("ScriptContext").Error)) do
-
         local conn = getrawmetatable(connection)
         local old = conn and conn.__index
-        
         if PROTOSMASHER_LOADED ~= nil then setwriteable(conn) else setReadOnly(conn, false) end
-        
         if old then
             conn.__index = newcclosure(function(t, k)
                 if k == "Connected" then
@@ -171,7 +161,6 @@ if getConnections then
                 return old(t, k)
             end)
         end
-
         if PROTOSMASHER_LOADED ~= nil then
             setReadOnly(conn)
             connection:Disconnect()
@@ -185,7 +174,16 @@ end
 useMethods(globalMethods)
 
 local HttpService = game:GetService("HttpService")
-local releaseInfo = HttpService:JSONDecode(game:HttpGetAsync("https://api.github.com/repos/" .. user .. "/C-Hydroxide/releases"))[1]
+local success, releases = pcall(function()
+    return HttpService:JSONDecode(game:HttpGetAsync("https://api.github.com/repos/" .. user .. "/C-Hydroxide/releases"))
+end)
+
+local releaseInfo = nil
+if success and type(releases) == "table" and #releases > 0 then
+    releaseInfo = releases[1]
+else
+    releaseInfo = { tag_name = "unknown" }
+end
 
 if readFile and writeFile then
     local hasFolderFunctions = (isFolder and makeFolder) ~= nil
@@ -198,7 +196,6 @@ if readFile and writeFile then
                     makeFolder(path)
                 end
             end
-
             createFolder("hydroxide")
             createFolder("hydroxide/user")
             createFolder("hydroxide/user/" .. user)
@@ -214,22 +211,18 @@ if readFile and writeFile then
             if importCache[asset] then
                 return unpack(importCache[asset])
             end
-
             local assets
-
             if asset:find("rbxassetid://") then
                 assets = { game:GetObjects(asset)[1] }
             elseif web then
                 if readFile and writeFile then
                     local file = (hasFolderFunctions and "hydroxide/user/" .. user .. '/' .. asset .. ".lua") or ("hydroxide-" .. user .. '-' .. asset:gsub('/', '-') .. ".lua")
                     local content
-
                     if (isFile and not isFile(file)) or not importCache[asset] then
                         content = game:HttpGetAsync("https://raw.githubusercontent.com/" .. user .. "/C-Hydroxide/" .. branch .. '/' .. asset .. ".lua")
                         writeFile(file, content)
                     else
                         local ran, result = pcall(readFile, file)
-
                         if (not ran) or not importCache[asset] then
                             content = game:HttpGetAsync("https://raw.githubusercontent.com/" .. user .. "/C-Hydroxide/" .. branch .. '/' .. asset .. ".lua")
                             writeFile(file, content)
@@ -237,7 +230,6 @@ if readFile and writeFile then
                             content = result
                         end
                     end
-
                     assets = { loadstring(content, asset .. '.lua')() }
                 else
                     assets = { loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/" .. user .. "/C-Hydroxide/" .. branch .. '/' .. asset .. ".lua"), asset .. '.lua')() }
@@ -245,7 +237,6 @@ if readFile and writeFile then
             else
                 assets = { loadstring(readFile("hydroxide/" .. asset .. ".lua"), asset .. '.lua')() }
             end
-
             importCache[asset] = assets
             return unpack(assets)
         end
@@ -256,30 +247,25 @@ if readFile and writeFile then
             if importCache[asset] then
                 return unpack(importCache[asset])
             end
-
             if asset:find("rbxassetid://") then
                 assets = { game:GetObjects(asset)[1] }
             elseif web then
                 local file = (hasFolderFunctions and "hydroxide/user/" .. user .. '/' .. asset .. ".lua") or ("hydroxide-" .. user .. '-' .. asset:gsub('/', '-') .. ".lua")
                 local ran, result = pcall(readFile, file)
                 local content
-
                 if not ran then
                     content = game:HttpGetAsync("https://raw.githubusercontent.com/" .. user .. "/C-Hydroxide/" .. branch .. '/' .. asset .. ".lua")
                     writeFile(file, content)
                 else
                     content = result
                 end
-
                 assets = { loadstring(content, asset .. '.lua')() }
             else
                 assets = { loadstring(readFile("hydroxide/" .. asset .. ".lua"), asset .. '.lua')() }
             end
-
             importCache[asset] = assets
             return unpack(assets)
         end
-
     end
 
     useMethods({ import = environment.import })
