@@ -1,210 +1,193 @@
-local UserInput = game:GetService("UserInputService")
-local TweenService = game:GetService("TweenService")
+local RemoteSpy = {}
+local Remote = import("objects/Remote")
 
-local List = {}
-local ListButton = {}
-
-local lists = {}
-local ctrlHeld = false
-local constants = {
-    tweenTime = TweenInfo.new(0.15),
-    selected = Color3.fromRGB(55, 35, 35),
-    deselected = Color3.fromRGB(35, 35, 35)
+local requiredMethods = {
+    checkCaller = true,
+    newCClosure = true,
+    hookFunction = true,
+    isReadOnly = true,
+    setReadOnly = true,
+    getInfo = true,
+    getMetatable = true,
+    setClipboard = true,
+    getNamecallMethod = true,
+    getCallingScript = true,
 }
 
-function List.new(instance, multiClick)
-    local list = {}
-    local layout = instance:FindFirstChildOfClass("UIListLayout")
+local remoteMethods = {
+    FireServer = true,
+    InvokeServer = true,
+    Fire = true,
+    Invoke = true
+}
 
-    instance.CanvasSize = UDim2.new(0, 0, 0, 15)
+local remotesViewing = {
+    RemoteEvent = true,
+    UnreliableRemoteEvent = true,
+    RemoteFunction = false,
+    BindableEvent = false,
+    BindableFunction = false
+}
 
-    if layout then
-        layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-            instance.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 15)
-        end)
-    end
+local methodHooks = {
+    RemoteEvent = Instance.new("RemoteEvent").FireServer,
+    UnreliableRemoteEvent = Instance.new("UnreliableRemoteEvent").FireServer,
+    RemoteFunction = Instance.new("RemoteFunction").InvokeServer,
+    BindableEvent = Instance.new("BindableEvent").Fire,
+    BindableFunction = Instance.new("BindableFunction").Invoke
+}
 
-    list.Layout = layout
-    list.Buttons = {}
-    list.Instance = instance
-    list.Clear = List.clear
-    list.Recalculate = List.recalculate
-    list.BindContextMenu = List.bindContextMenu
-    list.BindContextMenuSelected = List.bindContextMenuSelected
-    list.MultiClickEnabled = multiClick
+local currentRemotes = {}
 
-    table.insert(lists, list)
+local remoteDataEvent = Instance.new("BindableEvent")
+local eventSet = false
 
-    return list
+local function connectEvent(callback)
+    remoteDataEvent.Event:Connect(callback)
+    eventSet = true
 end
 
-function ListButton.new(instance, list)
-    local listButton = {}
-    local listInstance = list.Instance
-
-    list.Buttons[instance] = listButton
-
-    -- Manual sizing removed in favor of UIListLayout or Recalculate
-
-    instance.Parent = listInstance
-    instance.MouseButton1Click:Connect(function()
-        if not ctrlHeld and listButton.Callback and not pressHold then
-            listButton.Callback()
-        elseif not ctrlHeld and listButton.RightCallback and pressHold then
-			listButton.RightCallback()
-        elseif list.MultiClickEnabled and ctrlHeld then
-            if not list.Selected then
-                list.Selected = {}
-            end
-
-            if listButton.SelectedCallback then
-                listButton.SelectedCallback()
-            end
-
-            local foundButton = table.find(list.Selected, listButton)
-
-            if not foundButton then
-                table.insert(list.Selected, listButton)
-                listButton.SelectAnimation:Play()
-            else
-                table.remove(list.Selected, foundButton)
-                listButton.DeselectAnimation:Play()
-            end
-        end
+local function safeRemoteId(remote)
+    local name
+    local ok = pcall(function()
+        name = tostring(remote.Name)
     end)
 
-    instance.MouseButton2Click:Connect(function()
-        if not ctrlHeld and listButton.RightCallback then
-            listButton.RightCallback()
-        end
-    end)
-
-    listButton.List = list
-    listButton.Instance = instance
-    listButton.SetCallback = ListButton.setCallback
-    listButton.SetRightCallback = ListButton.setRightCallback
-    listButton.SetSelectedCallback = ListButton.setSelectedCallback
-    listButton.Remove = ListButton.remove
-    listButton.SelectAnimation = TweenService:Create(instance, constants.tweenTime, { ImageColor3 = constants.selected })
-    listButton.DeselectAnimation = TweenService:Create(instance, constants.tweenTime, { ImageColor3 = constants.deselected })
-    return listButton
-end
-
-function List.clear(list)
-    local instance = list.Instance
-
-    for _i, listButton in pairs(instance:GetChildren()) do
-        if listButton:IsA("ImageButton") then
-            listButton:Destroy()
-        end
+    if not ok or not name or name == "" then
+        name = "<unnamed>"
     end
 
-    instance.CanvasSize = UDim2.new(0, 0, 0, 15)
-    list.Buttons = {}
-end
-
-function List.recalculate(list)
-    if list.Layout then
-        list.Instance.CanvasSize = UDim2.new(0, 0, 0, list.Layout.AbsoluteContentSize.Y + 15)
-        return
+    local parent = rawget(remote, "Parent")
+    if not parent then
+        return "[NilParent]:" .. name
     end
 
-    local newHeight = 15
-
-    for instance in pairs(list.Buttons) do
-        if instance.Visible then
-            newHeight = newHeight + instance.AbsoluteSize.Y + 5
-        end
-    end
-
-    list.Instance.CanvasSize = UDim2.new(0, 0, 0, newHeight)
+    return remote.ClassName .. ":" .. name
 end
 
-function List.bindContextMenu(list, contextMenu)
-    if not list.BoundContextMenu then
-        local function showContextMenu()
-            if not list.Selected then
-                contextMenu:Show()
+local nmcTrampoline
+nmcTrampoline = hookMetaMethod(game, "__namecall", function(self, ...)
+    local args = {...}
+
+    if typeof(self) ~= "Instance" then
+        return nmcTrampoline(self, ...)
+    end
+
+    local method = getNamecallMethod():lower()
+    if method == "fireserver" then
+        method = "FireServer"
+    elseif method == "invokeserver" then
+        method = "InvokeServer"
+    end
+
+    if remotesViewing[self.ClassName] and self ~= remoteDataEvent and remoteMethods[method] then
+        local remote = currentRemotes[self]
+
+        if not remote then
+            local ok, r = pcall(Remote.new, self)
+            if not ok or not r then
+                return nmcTrampoline(self, ...)
             end
+            remote = r
+            currentRemotes[self] = remote
         end
 
-        list.Instance.ChildAdded:Connect(function(instance)
-            instance.MouseButton2Click:Connect(showContextMenu)
-            instance.MouseButton1Click:Connect(function()
-            	if pressHold then
-            		showContextMenu()
-            	end
+        local argsIgnored = remote.AreArgsIgnored(remote, args)
+        local argsBlocked = remote.AreArgsBlocked(remote, args)
+
+        if eventSet and not remote.Ignored and not argsIgnored then
+            local info = getInfo(3)
+            local script
+            pcall(function()
+                script = getCallingScript((PROTOSMASHER_LOADED ~= nil and 2) or nil)
             end)
-        end)
 
-        list.BoundContextMenu = contextMenu
-    end
-end
+            local call = {
+                script = script,
+                args = args,
+                func = info and info.func or nil,
+                id = safeRemoteId(self)
+            }
 
-function List.bindContextMenuSelected(list, contextMenu)
-    if not list.BoundContextMenuSelected then
-        local function showContextMenu()
-            if list.Selected then
-                contextMenu:Show()
-            end
+            remote.IncrementCalls(remote, call)
+            remoteDataEvent.Fire(remoteDataEvent, self, call)
         end
 
-        list.Instance.ChildAdded:Connect(function(instance)
-            instance.MouseButton2Click:Connect(showContextMenu)
-            instance.MouseButton1Click:Connect(function()
-            	if pressHold then
-            		showContextMenu()
-            	end
-            end)
-        end)
-
-        list.BoundContextMenuSelected = contextMenu
+        if remote.Blocked or argsBlocked then
+            return
+        end
     end
+
+    return nmcTrampoline(self, ...)
+end)
+
+local pcall = pcall
+
+local function checkPermission(self)
+    if self.ClassName then end
 end
 
-function ListButton.setCallback(listButton, callback)
-    listButton.Callback = callback
-end
+for className, hook in pairs(methodHooks) do
+    local originalMethod
+    originalMethod = hookFunction(hook, newCClosure(function(self, ...)
+        local args = {...}
+        local target = args[1]
 
-function ListButton.setRightCallback(listButton, callback)
-    listButton.RightCallback = callback
-end
+        if typeof(target) ~= "Instance" then
+            return originalMethod(self, ...)
+        end
 
-function ListButton.setSelectedCallback(listButton, callback)
-    listButton.SelectedCallback = callback
-end
+        local ok = pcall(checkPermission, target)
+        if not ok then
+            return originalMethod(self, ...)
+        end
 
-function ListButton.remove(listButton)
-    local list = listButton.List
-    local instance = listButton.Instance
-    local listInstance = list.Instance
+        if target.ClassName == className and remotesViewing[target.ClassName] and target ~= remoteDataEvent then
+            local remote = currentRemotes[target]
 
-    -- Manual sizing removed
-    list.Buttons[instance] = nil 
-
-    instance:Destroy()
-end
-
-oh.Events.ListInputBegan = UserInput.InputBegan:Connect(function(input)
-    if input.KeyCode == Enum.KeyCode.LeftControl then
-        ctrlHeld = true
-    elseif not ctrlHeld and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
-        for _i, list in pairs(lists) do
-            if list.Selected then
-                for _k, listButton in pairs(list.Selected) do
-                    listButton.DeselectAnimation:Play()
+            if not remote then
+                local ok2, r = pcall(Remote.new, target)
+                if not ok2 or not r then
+                    return originalMethod(self, ...)
                 end
+                remote = r
+                currentRemotes[target] = remote
+            end
 
-                list.Selected = nil
+            local argsIgnored = remote:AreArgsIgnored(args)
+
+            if eventSet and not remote.Ignored and not argsIgnored then
+                local info = getInfo(3)
+                local script
+                pcall(function()
+                    script = getCallingScript((PROTOSMASHER_LOADED ~= nil and 2) or nil)
+                end)
+
+                local call = {
+                    script = script,
+                    args = args,
+                    func = info and info.func or nil,
+                    id = safeRemoteId(target)
+                }
+
+                remote:IncrementCalls(call)
+                remoteDataEvent:Fire(target, call)
+            end
+
+            if remote.Blocked or remote:AreArgsBlocked(args) then
+                return
             end
         end
-    end
-end)
 
-oh.Events.ListInputEnded = UserInput.InputEnded:Connect(function(input)
-    if input.KeyCode == Enum.KeyCode.LeftControl then
-        ctrlHeld = false 
-    end
-end)
+        return originalMethod(self, ...)
+    end))
 
-return List, ListButton
+    oh.Hooks[originalMethod] = hook
+end
+
+RemoteSpy.RemotesViewing = remotesViewing
+RemoteSpy.CurrentRemotes = currentRemotes
+RemoteSpy.ConnectEvent = connectEvent
+RemoteSpy.RequiredMethods = requiredMethods
+
+return RemoteSpy
