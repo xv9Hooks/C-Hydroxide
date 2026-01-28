@@ -72,7 +72,6 @@ pathContext:SetCallback(function()
     MessageBox.Show("Success", ("%s's path was copied to your clipboard."):format(selectedInstance.Name), MessageType.OK)
 end)
 
--- Güvenli createProto fonksiyonu
 local function createProto(index, value)
     local instance = Assets.ProtoPod:Clone()
     local information = instance.Information
@@ -98,7 +97,6 @@ local function createProto(index, value)
     ListButton.new(instance, protosList)
 end
 
--- Güvenli createConstant fonksiyonu
 local function createConstant(index, value)
     local instance = Assets.ConstantPod:Clone()
     local information = instance.Information
