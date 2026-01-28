@@ -75,15 +75,7 @@ end)
 local function createProto(index, value)
     local instance = Assets.ProtoPod:Clone()
     local information = instance.Information
-    local functionName = ""
-
-    if typeof(value) == "function" then
-        local info = getInfo(value)
-        functionName = info and info.name or "Unnamed function"
-    else
-        functionName = "Not a function"
-    end
-
+    local functionName = tostring(value)
     local indexWidth = TextService:GetTextSize(index, 18, "SourceSans", constants.textWidth).X + 8
 
     information.Index.Text = index
@@ -108,18 +100,11 @@ local function createConstant(index, value)
     information.Icon.Position = UDim2.new(0, indexWidth, 0, 2)
     information.Label.Position = UDim2.new(0, indexWidth + 20, 0, 0)
 
-    if typeof(value) == "function" then
-        local info = getInfo(value)
-        local functionName = info and info.name or "Unnamed function"
-        information.Label.Text = functionName
-    else
-        information.Label.Text = tostring(value)
-    end
+    information.Label.Text = tostring(value)
 
     ListButton.new(instance, constantsList)
 end
 
--- Log Object
 local Log = {}
 
 function Log.new(localScript)
@@ -172,8 +157,6 @@ function Log.new(localScript)
     return log
 end
 
--- UI Functionality
-
 local function addScripts(query)
     scriptList:Clear()
     scriptLogs = {}
@@ -222,7 +205,6 @@ for _i, sectionButton in pairs(InfoOptions:GetChildren()) do
             
             selectedSection = section
             selectedSectionButton = sectionButton
-
         end)
 
         sectionButton.MouseEnter:Connect(function()
