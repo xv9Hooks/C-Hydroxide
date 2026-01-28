@@ -68,7 +68,6 @@ scriptList:BindContextMenu(ContextMenu.new({ pathContext }))
 
 pathContext:SetCallback(function()
     local selectedInstance = selected.logContext.LocalScript.Instance
-
     setClipboard(getInstancePath(selectedInstance))
     MessageBox.Show("Success", ("%s's path was copied to your clipboard."):format(selectedInstance.Name), MessageType.OK)
 end)
@@ -79,23 +78,14 @@ local function createProto(index, value)
     local information = instance.Information
     local functionName = ""
 
-    if type(value) == "function" then
-        local ok, info = pcall(getInfo, value)
-        if ok and info then
-            functionName = info.name or ''
-        else
-            functionName = "Unnamed function"
-        end
+    if typeof(value) == "function" then
+        local info = getInfo(value)
+        functionName = info and info.name or "Unnamed function"
     else
-        functionName = tostring(value)
+        functionName = "Not a function"
     end
 
     local indexWidth = TextService:GetTextSize(index, 18, "SourceSans", constants.textWidth).X + 8
-
-    if functionName == '' then
-        functionName = "Unnamed function"
-        information.Label.TextColor3 = oh.Constants.Syntax["unnamed_function"]
-    end
 
     information.Index.Text = index
     information.Label.Text = functionName
@@ -112,35 +102,22 @@ end
 local function createConstant(index, value)
     local instance = Assets.ConstantPod:Clone()
     local information = instance.Information
-    local valueType = type(value)
     local indexWidth = TextService:GetTextSize(index, 18, "SourceSans", constants.textWidth).X + 8    
 
     information.Index.Text = index
-
     information.Index.Size = UDim2.new(0, indexWidth, 0, 20)
     information.Label.Size = UDim2.new(1, -(indexWidth + 20), 1, 0)
     information.Icon.Position = UDim2.new(0, indexWidth, 0, 2)
     information.Label.Position = UDim2.new(0, indexWidth + 20, 0, 0)
 
-    if valueType == "function" then
-        local functionName = ""
-        if type(value) == "function" then
-            local ok, info = pcall(getInfo, value)
-            if ok and info then
-                functionName = info.name or ''
-            end
-        end
-
-        if functionName == '' then
-            functionName = "Unnamed function"
-            information.Label.TextColor3 = oh.Constants.Syntax["unnamed_function"]
-        end
-
+    if typeof(value) == "function" then
+        local info = getInfo(value)
+        local functionName = info and info.name or "Unnamed function"
         information.Label.Text = functionName
     else
         information.Label.Text = tostring(value)
     end
-    
+
     ListButton.new(instance, constantsList)
 end
 
