@@ -14,7 +14,9 @@ local List, ListButton = import("ui/controls/List")
 local MessageBox, MessageType = import("ui/controls/MessageBox")
 local ContextMenu, ContextMenuButton = import("ui/controls/ContextMenu")
 local TabSelector = import("ui/controls/TabSelector")
+local Prompt = import("ui/controls/Prompt")
 
+local Prompts = import("rbxassetid://11389137937").Base.Prompts
 local Page = import("rbxassetid://11389137937").Base.Body.Pages.ConstantScanner
 local Assets = import("rbxassetid://5042114982").ConstantScanner
 
@@ -24,18 +26,41 @@ local SearchBox = Query.Query
  
 local constantList = List.new(Page.Results.Clip.Content)
 local constantLogs = {}
-local selectedLog 
+local selectedLog
+local selectedConstant
+local selectedConstantLog
 
 local spyClosureContext = ContextMenuButton.new("rbxassetid://4666593447", "Spy Closure")
 local viewConstantsContext = ContextMenuButton.new("rbxassetid://5179169654", "View All Constants")
 local getScriptContext = ContextMenuButton.new("rbxassetid://4891705738", "Get Script Path")
+local changeConstantContext = ContextMenuButton.new("rbxassetid://5458573463", "Change Constant")
 
 local constants = {
     tempConstantColor = Color3.fromRGB(40, 20, 20),
     tempBorderColor = Color3.fromRGB(20, 0, 0)
 }
 
-constantList:BindContextMenu(ContextMenu.new({ spyClosureContext, viewConstantsContext, getScriptContext }))
+constantList:BindContextMenu(ContextMenu.new({ spyClosureContext, viewConstantsContext, getScriptContext, changeConstantContext }))
+
+local modifyConstant = Prompt.new(Prompts.ModifyUpvalue)
+local modifyConstantInput = Prompts.ModifyUpvalue.Inner.Content.Value.Input
+local modifyConstantSubmit = Prompts.ModifyUpvalue.Inner.Buttons.SetCancel.Set
+
+modifyConstantSubmit.MouseButton1Click:Connect(function()
+    local value = modifyConstantInput.Text
+    local newValue = tonumber(value) or value
+
+    if selectedConstant then
+        selectedConstant:Set(newValue)
+        
+        local valueType = type(newValue)
+        selectedConstantLog.Value.Text = toString(newValue)
+        selectedConstantLog.Value.TextColor3 = oh.Constants.Syntax[valueType]
+        selectedConstantLog.Icon.Image = oh.Constants.Types[valueType]
+        
+        modifyConstant:Hide()
+    end
+end)
 
 local function addConstant(constant, temporary)
     local constantLog = Assets.Constant:Clone()
@@ -61,10 +86,16 @@ local function addConstant(constant, temporary)
     constantLog.Value.TextColor3 = oh.Constants.Syntax[valueType]
     constantLog.Icon.Image = oh.Constants.Types[valueType]
 
-    -- constantLog.MouseButton1Click:Connect(function()
-    --     selectedConstant = constant
-    --     selectedConstantLog = constantLog
-    -- end)
+    constantLog.MouseButton1Click:Connect(function()
+        if selectedConstantLog then
+            TweenService:Create(selectedConstantLog, TweenInfo.new(0.15), { BackgroundTransparency = 1 }):Play()
+        end
+
+        selectedConstant = constant
+        selectedConstantLog = constantLog
+        
+        TweenService:Create(constantLog, TweenInfo.new(0.15), { BackgroundTransparency = 0.8 }):Play()
+    end)
 
     return constantLog
 end
@@ -195,6 +226,15 @@ getScriptContext:SetCallback(function()
         if typeof(script) == "Instance" then
             setClipboard(getInstancePath(script))
         end
+    end
+end)
+
+changeConstantContext:SetCallback(function()
+    if selectedConstant then
+        modifyConstantInput.Text = toString(selectedConstant.Value)
+        modifyConstant:Show()
+    else
+        MessageBox.Show("No constant selected", "Please select a constant to modify", MessageType.OK)
     end
 end)
 
