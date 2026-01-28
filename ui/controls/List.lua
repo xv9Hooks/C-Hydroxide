@@ -14,13 +14,17 @@ local constants = {
 
 function List.new(instance, multiClick)
     local list = {}
-    instance.CanvasSize = UDim2.new(0, 0, 0, 0)
-    
     local layout = instance:FindFirstChildOfClass("UIListLayout")
+
+    instance.CanvasSize = UDim2.new(0, 0, 0, 15)
+
     if layout then
-        layout.Padding = UDim.new(0, 5)
+        layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+            instance.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 15)
+        end)
     end
 
+    list.Layout = layout
     list.Buttons = {}
     list.Instance = instance
     list.Clear = List.clear
@@ -30,17 +34,19 @@ function List.new(instance, multiClick)
     list.MultiClickEnabled = multiClick
 
     table.insert(lists, list)
+
     return list
 end
 
 function ListButton.new(instance, list)
     local listButton = {}
     local listInstance = list.Instance
-    list.Buttons[instance] = listButton
-    instance.Parent = listInstance
-    
-    list.Recalculate(list)
 
+    list.Buttons[instance] = listButton
+
+    -- Manual sizing removed in favor of UIListLayout or Recalculate
+
+    instance.Parent = listInstance
     instance.MouseButton1Click:Connect(function()
         if not ctrlHeld and listButton.Callback and not pressHold then
             listButton.Callback()
@@ -50,10 +56,13 @@ function ListButton.new(instance, list)
             if not list.Selected then
                 list.Selected = {}
             end
+
             if listButton.SelectedCallback then
                 listButton.SelectedCallback()
             end
+
             local foundButton = table.find(list.Selected, listButton)
+
             if not foundButton then
                 table.insert(list.Selected, listButton)
                 listButton.SelectAnimation:Play()
@@ -83,30 +92,32 @@ end
 
 function List.clear(list)
     local instance = list.Instance
-    list.Buttons = {}
-    for _, child in pairs(instance:GetChildren()) do
-        if child:IsA("ImageButton") or child:IsA("Frame") then
-            child:Destroy()
+
+    for _i, listButton in pairs(instance:GetChildren()) do
+        if listButton:IsA("ImageButton") then
+            listButton:Destroy()
         end
     end
-    instance.CanvasSize = UDim2.new(0, 0, 0, 0)
+
+    instance.CanvasSize = UDim2.new(0, 0, 0, 15)
+    list.Buttons = {}
 end
 
 function List.recalculate(list)
-    local layout = list.Instance:FindFirstChildOfClass("UIListLayout")
-    if layout then
-        task.defer(function()
-            list.Instance.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 15)
-        end)
-    else
-        local totalHeight = 0
-        for instance in pairs(list.Buttons) do
-            if instance and instance.Parent and instance.Visible then
-                totalHeight = totalHeight + instance.Size.Y.Offset + 5
-            end
-        end
-        list.Instance.CanvasSize = UDim2.new(0, 0, 0, totalHeight + 15)
+    if list.Layout then
+        list.Instance.CanvasSize = UDim2.new(0, 0, 0, list.Layout.AbsoluteContentSize.Y + 15)
+        return
     end
+
+    local newHeight = 15
+
+    for instance in pairs(list.Buttons) do
+        if instance.Visible then
+            newHeight = newHeight + instance.AbsoluteSize.Y + 5
+        end
+    end
+
+    list.Instance.CanvasSize = UDim2.new(0, 0, 0, newHeight)
 end
 
 function List.bindContextMenu(list, contextMenu)
@@ -116,14 +127,16 @@ function List.bindContextMenu(list, contextMenu)
                 contextMenu:Show()
             end
         end
+
         list.Instance.ChildAdded:Connect(function(instance)
-            if instance:IsA("GuiButton") then
-                instance.MouseButton2Click:Connect(showContextMenu)
-                instance.MouseButton1Click:Connect(function()
-                    if pressHold then showContextMenu() end
-                end)
-            end
+            instance.MouseButton2Click:Connect(showContextMenu)
+            instance.MouseButton1Click:Connect(function()
+            	if pressHold then
+            		showContextMenu()
+            	end
+            end)
         end)
+
         list.BoundContextMenu = contextMenu
     end
 end
@@ -135,14 +148,16 @@ function List.bindContextMenuSelected(list, contextMenu)
                 contextMenu:Show()
             end
         end
+
         list.Instance.ChildAdded:Connect(function(instance)
-            if instance:IsA("GuiButton") then
-                instance.MouseButton2Click:Connect(showContextMenu)
-                instance.MouseButton1Click:Connect(function()
-                    if pressHold then showContextMenu() end
-                end)
-            end
+            instance.MouseButton2Click:Connect(showContextMenu)
+            instance.MouseButton1Click:Connect(function()
+            	if pressHold then
+            		showContextMenu()
+            	end
+            end)
         end)
+
         list.BoundContextMenuSelected = contextMenu
     end
 end
@@ -162,9 +177,12 @@ end
 function ListButton.remove(listButton)
     local list = listButton.List
     local instance = listButton.Instance
+    local listInstance = list.Instance
+
+    -- Manual sizing removed
     list.Buttons[instance] = nil 
+
     instance:Destroy()
-    list.Recalculate(list)
 end
 
 oh.Events.ListInputBegan = UserInput.InputBegan:Connect(function(input)
@@ -176,6 +194,7 @@ oh.Events.ListInputBegan = UserInput.InputBegan:Connect(function(input)
                 for _k, listButton in pairs(list.Selected) do
                     listButton.DeselectAnimation:Play()
                 end
+
                 list.Selected = nil
             end
         end
