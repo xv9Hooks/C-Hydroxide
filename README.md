@@ -4,7 +4,7 @@ local owner = "xv9Hooks"
 local branch = "revision"
 
 local function webImport(file)
-    return loadstring(game:HttpGetAsync(("https://raw.githubusercontent.com/%s/Hydroxide/%s/%s.lua"):format(owner, branch, file)), file .. '.lua')()
+    return loadstring(game:HttpGetAsync(("https://raw.githubusercontent.com/%s/C-Hydroxide/%s/%s.lua"):format(owner, branch, file)), file .. '.lua')()
 end
 
 webImport("init")
