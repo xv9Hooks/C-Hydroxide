@@ -73,13 +73,19 @@ pathContext:SetCallback(function()
     MessageBox.Show("Success", ("%s's path was copied to your clipboard."):format(selectedInstance.Name), MessageType.OK)
 end)
 
+-- Güvenli createProto fonksiyonu
 local function createProto(index, value)
     local instance = Assets.ProtoPod:Clone()
     local information = instance.Information
     local functionName = ""
-    
+
     if type(value) == "function" then
-        functionName = getInfo(value).name or ''
+        local ok, info = pcall(getInfo, value)
+        if ok and info then
+            functionName = info.name or ''
+        else
+            functionName = "Unnamed function"
+        end
     else
         functionName = tostring(value)
     end
@@ -90,7 +96,7 @@ local function createProto(index, value)
         functionName = "Unnamed function"
         information.Label.TextColor3 = oh.Constants.Syntax["unnamed_function"]
     end
-    
+
     information.Index.Text = index
     information.Label.Text = functionName
 
@@ -102,6 +108,7 @@ local function createProto(index, value)
     ListButton.new(instance, protosList)
 end
 
+-- Güvenli createConstant fonksiyonu
 local function createConstant(index, value)
     local instance = Assets.ConstantPod:Clone()
     local information = instance.Information
@@ -118,14 +125,17 @@ local function createConstant(index, value)
     if valueType == "function" then
         local functionName = ""
         if type(value) == "function" then
-            functionName = getInfo(value).name or ''
+            local ok, info = pcall(getInfo, value)
+            if ok and info then
+                functionName = info.name or ''
+            end
         end
 
         if functionName == '' then
             functionName = "Unnamed function"
             information.Label.TextColor3 = oh.Constants.Syntax["unnamed_function"]
         end
-        
+
         information.Label.Text = functionName
     else
         information.Label.Text = tostring(value)
