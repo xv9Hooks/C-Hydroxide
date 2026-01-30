@@ -149,33 +149,38 @@ spyClosureContext:SetCallback(function()
 end)
 
 viewConstantsContext:SetCallback(function()
-    if selectedLog then
-        local temporaryConstants = selectedLog.TemporaryConstants or {}
-        local instance = selectedLog.Button.Instance
+    if not selectedLog then return end
+    local instance = selectedLog.Button.Instance
+    if selectedLog.TemporaryConstants then
         local newHeight = 0
-        for _i, constantLog in pairs(temporaryConstants) do
+        for _, constantLog in pairs(selectedLog.TemporaryConstants) do
             newHeight = newHeight - (constantLog.AbsoluteSize.Y + 5)
             constantLog:Destroy()
         end
         selectedLog.TemporaryConstants = nil
         selectedLog.Closure.TemporaryConstants = {}
-        local closure = selectedLog.Closure
-        temporaryConstants = {}
-        for i, v in pairs(getConstants(closure.Data) or {}) do
-            if not closure.Constants[i] then
-                local constant = Constant.new(closure, i, v)
-                local constantLog = addConstant(constant, true)
-                constantLog.Parent = instance.Constants
-                newHeight = newHeight + constantLog.AbsoluteSize.Y + 5
-                temporaryConstants[i] = constantLog
-                closure.TemporaryConstants[i] = constant
-            end
-        end
-        selectedLog.TemporaryConstants = temporaryConstants
         instance.Constants.Size = instance.Constants.Size + UDim2.new(0, 0, 0, newHeight)
         instance.Size = instance.Size + UDim2.new(0, 0, 0, newHeight)
         constantList:Recalculate()
+        return
     end
+    local closure = selectedLog.Closure
+    local temporaryConstants = {}
+    local newHeight = 0
+    for i, v in pairs(getConstants(closure.Data) or {}) do
+        if not closure.Constants[i] then
+            local constant = Constant.new(closure, i, v)
+            local constantLog = addConstant(constant, true)
+            constantLog.Parent = instance.Constants
+            newHeight = newHeight + constantLog.AbsoluteSize.Y + 5
+            temporaryConstants[i] = constantLog
+            closure.TemporaryConstants[i] = constant
+        end
+    end
+    selectedLog.TemporaryConstants = temporaryConstants
+    instance.Constants.Size = instance.Constants.Size + UDim2.new(0, 0, 0, newHeight)
+    instance.Size = instance.Size + UDim2.new(0, 0, 0, newHeight)
+    constantList:Recalculate()
 end)
 
 getScriptContext:SetCallback(function()
